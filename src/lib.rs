@@ -23,6 +23,31 @@ macro_rules! define_int_fn_ptr_sized_value {
 }
 
 #[macro_export(local_inner_macros)]
+macro_rules! define_array_fn_ops {
+    ($vis:vis $item_ty:ty, $len_ty:ty, $idx_ty:ty) => {
+        pub const fn len(&self) -> $len_ty {
+            self.array.len() as $len_ty
+        }
+
+        pub fn as_slice(&self) -> &[$item_ty] {
+            &self.array[..]
+        }
+
+        pub fn as_mut_slice(&mut self) -> &mut [$item_ty] {
+            &mut self.array[..]
+        }
+
+        pub fn iter(&self) -> ::core::slice::Iter<'_, $item_ty> {
+            self.as_slice().iter()
+        }
+
+        pub fn iter_mut(&mut self) -> ::core::slice::IterMut<'_, $item_ty> {
+            self.as_mut_slice().iter_mut()
+        }
+    };
+}
+
+#[macro_export(local_inner_macros)]
 #[rustfmt::skip]
 macro_rules! define_arrayvec_fn_ops {
     ($vis:vis $item_ty:ty, $len_ty:ty, $idx_ty:ty, $capacity:expr) => {
@@ -201,6 +226,75 @@ macro_rules! define_ranged_types {
         }
 
         #[macro_export]
+        macro_rules! $ranged_array_macro {
+            ($item_ty:path, $dollar m:expr, $dollar n:expr) => {
+                $dollar crate::$ranged_array_ty<
+                    $item_ty,
+                    {($dollar m) as $dollar crate::range_generic_type!($signed)},
+                    {($dollar n - $dollar m) as usize}>}
+        }
+
+        #[derive(Copy, Clone)]
+        pub struct $ranged_array_ty<T, const RANGE_START: range_generic_type!($signed), const RANGE_LEN: usize> {
+            array: [T; RANGE_LEN],
+        }
+        
+        impl<T, const RANGE_START: range_generic_type!($signed), const RANGE_LEN: usize>
+            $ranged_array_ty<T, RANGE_START, RANGE_LEN> {
+            define_array_fn_ops!(T, $len_ty, $ranged_int_ty<RANGE_START, RANGE_LEN>);
+        }
+
+        impl<T, const RANGE_START: range_generic_type!($signed), const RANGE_LEN: usize>
+            Default for $ranged_array_ty<T, RANGE_START, RANGE_LEN> where T: Default {
+            fn default() -> Self {
+                $ranged_array_ty {
+                    array: ::core::array::from_fn(|_| Default::default())
+                }
+            }
+        }
+
+
+        impl<T, const RANGE_START: range_generic_type!($signed), const RANGE_LEN: usize>
+            ::core::ops::Index<$ranged_int_ty<RANGE_START, RANGE_LEN>>
+            for $ranged_array_ty<T, RANGE_START, RANGE_LEN> {
+            
+            type Output = T;
+
+            fn index(&self, idx: $ranged_int_ty<RANGE_START, RANGE_LEN>) -> &T {
+                let offset = idx.offset() as usize;
+                &self.as_slice()[offset]
+            }
+        }
+
+        impl<T, const RANGE_START: range_generic_type!($signed), const RANGE_LEN: usize>
+            ::core::ops::IndexMut<$ranged_int_ty<RANGE_START, RANGE_LEN>>
+            for $ranged_array_ty<T, RANGE_START, RANGE_LEN> {
+            
+            fn index_mut(&mut self, idx: $ranged_int_ty<RANGE_START, RANGE_LEN>) -> &mut T {
+                let offset = idx.offset() as usize;
+                &mut self.as_mut_slice()[offset]
+            }
+        }
+
+        impl<T, const RANGE_START: range_generic_type!($signed), const RANGE_LEN: usize>
+            ::core::ops::Index<$ty> for $ranged_array_ty<T, RANGE_START, RANGE_LEN> {
+            
+            type Output = T;
+
+            fn index(&self, idx: $ty) -> &T {
+                ::core::ops::Index::index(self, $ranged_int_ty::new(idx))
+            }
+        }
+
+        impl<T, const RANGE_START: range_generic_type!($signed), const RANGE_LEN: usize>
+            ::core::ops::IndexMut<$ty> for $ranged_array_ty<T, RANGE_START, RANGE_LEN> {
+            
+            fn index_mut(&mut self, idx: $ty) -> &mut T {
+                ::core::ops::IndexMut::index_mut(self, $ranged_int_ty::new(idx))
+            }
+        }
+
+        #[macro_export]
         macro_rules! $ranged_arrayvec_macro {
             ($item_ty:path, $dollar m:expr, $dollar n:expr) => {
                 $dollar crate::$ranged_arrayvec_ty<
@@ -218,6 +312,7 @@ macro_rules! define_ranged_types {
             $ranged_arrayvec_ty<T, RANGE_START, RANGE_LEN> {
             define_arrayvec_fn_ops!(T, $len_ty, $ranged_int_ty<RANGE_START, RANGE_LEN>, RANGE_LEN);
         }
+
         impl<T, const RANGE_START: range_generic_type!($signed), const RANGE_LEN: usize>
             Drop for $ranged_arrayvec_ty<T, RANGE_START, RANGE_LEN> {
             fn drop(&mut self) {
@@ -367,6 +462,75 @@ macro_rules! define_ranged_types {
         }
 
         #[macro_export]
+        macro_rules! $ranged_array_macro {
+            ($item_ty:path, $dollar m:expr, $dollar n:expr) => {
+                $dollar crate::$ranged_array_ty<
+                    $item_ty,
+                    {($dollar m) as $dollar crate::range_generic_type!($signed)},
+                    {($dollar n - $dollar m + 1) as usize},
+                    {($dollar n - $dollar m) as usize}>}
+        }
+
+        #[derive(Clone, Copy)]
+        pub struct $ranged_array_ty<T, const RANGE_START: range_generic_type!($signed), const RANGE_LEN: usize, const RANGE_LAST_OFFSET: usize> {
+            array: [T; RANGE_LEN],
+        }
+
+        impl<T, const RANGE_START: range_generic_type!($signed), const RANGE_LEN: usize, const RANGE_LAST_OFFSET: usize>
+            $ranged_array_ty<T, RANGE_START, RANGE_LEN, RANGE_LAST_OFFSET> {
+            define_array_fn_ops!(T, $len_ty, $ranged_int_ty<RANGE_START, RANGE_LEN, RANGE_LAST_OFFSET>);
+        }
+
+        impl<T, const RANGE_START: range_generic_type!($signed), const RANGE_LEN: usize, const RANGE_LAST_OFFSET: usize>
+            ::core::default::Default for $ranged_array_ty<T, RANGE_START, RANGE_LEN, RANGE_LAST_OFFSET> where T: Default {
+            fn default() -> Self {
+                $ranged_array_ty {
+                    array: ::core::array::from_fn(|_| Default::default())
+                }
+            }
+        }
+
+        impl<T, const RANGE_START: range_generic_type!($signed), const RANGE_LEN: usize, const RANGE_LAST_OFFSET: usize>
+            ::core::ops::Index<$ranged_int_ty<RANGE_START, RANGE_LEN, RANGE_LAST_OFFSET>>
+            for $ranged_array_ty<T, RANGE_START, RANGE_LEN, RANGE_LAST_OFFSET> {
+            
+            type Output = T;
+
+            fn index(&self, idx: $ranged_int_ty<RANGE_START, RANGE_LEN, RANGE_LAST_OFFSET>) -> &T {
+                let offset = idx.offset() as usize;
+                &self.as_slice()[offset]
+            }
+        }
+
+        impl<T, const RANGE_START: range_generic_type!($signed), const RANGE_LEN: usize, const RANGE_LAST_OFFSET: usize>
+            ::core::ops::IndexMut<$ranged_int_ty<RANGE_START, RANGE_LEN, RANGE_LAST_OFFSET>>
+            for $ranged_array_ty<T, RANGE_START, RANGE_LEN, RANGE_LAST_OFFSET> {
+            
+            fn index_mut(&mut self, idx: $ranged_int_ty<RANGE_START, RANGE_LEN, RANGE_LAST_OFFSET>) -> &mut T {
+                let offset = idx.offset() as usize;
+                &mut self.as_mut_slice()[offset]
+            }
+        }
+
+        impl<T, const RANGE_START: range_generic_type!($signed), const RANGE_LEN: usize, const RANGE_LAST_OFFSET: usize>
+            ::core::ops::Index<$ty> for $ranged_array_ty<T, RANGE_START, RANGE_LEN, RANGE_LAST_OFFSET> {
+            
+            type Output = T;
+
+            fn index(&self, idx: $ty) -> &T {
+                ::core::ops::Index::index(self, $ranged_int_ty::new(idx))
+            }
+        }
+
+        impl<T, const RANGE_START: range_generic_type!($signed), const RANGE_LEN: usize, const RANGE_LAST_OFFSET: usize>
+            ::core::ops::IndexMut<$ty> for $ranged_array_ty<T, RANGE_START, RANGE_LEN, RANGE_LAST_OFFSET> {
+            
+            fn index_mut(&mut self, idx: $ty) -> &mut T {
+                ::core::ops::IndexMut::index_mut(self, $ranged_int_ty::new(idx))
+            }
+        }
+
+        #[macro_export]
         macro_rules! $ranged_arrayvec_macro {
             ($item_ty:path, $dollar m:expr, $dollar n:expr) => {
                 $dollar crate::$ranged_arrayvec_ty<
@@ -452,6 +616,11 @@ macro_rules! define_range_to_types {
         #[macro_export]
         macro_rules! $ranged_int_macro {
             ($dollar n:expr) => {$dollar crate::$ranged_int_full_macro!(0, $dollar n)}
+        }
+
+        #[macro_export]
+        macro_rules! $ranged_array_macro {
+            ($dollar item_ty:ty, $dollar n:expr) => {$dollar crate::$ranged_array_full_macro!($dollar item_ty, 0, $dollar n)}
         }
 
         #[macro_export]
