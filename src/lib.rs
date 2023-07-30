@@ -58,6 +58,22 @@ macro_rules! define_arrayvec_fn_ops {
             }
         }
 
+        pub fn extend<I: IntoIterator<Item = $item_ty>>(&mut self, iter: I) {
+            for item in iter {
+                self.push(item);
+            }
+        }
+
+        pub fn resize_with<F: FnMut() -> T>(&mut self, new_len: $len_ty, f: F) {
+            let old_len = self.len();
+            if new_len > old_len {
+                ::core::assert!((new_len as usize) < $capacity);
+                self.extend(core::iter::repeat_with(f).take((new_len - old_len) as usize))
+            } else if new_len < old_len {
+                self.truncate(new_len);
+            }
+        }
+
         pub fn get(&self, idx: $idx_ty) -> Option<&$item_ty> {
             let offset = idx.offset();
             if offset as usize >= self.len {
